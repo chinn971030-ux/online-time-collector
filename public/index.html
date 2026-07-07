@@ -239,6 +239,12 @@
         <aside id="adminPanel" class="panel hidden">
           <div class="panel-head"><h2>老师汇总</h2></div>
           <div class="panel-body">
+            <div class="small" style="margin-bottom: 6px;">老师管理链接</div>
+            <div class="linkbox">
+              <input id="adminLink" readonly aria-label="老师管理链接">
+              <button id="copyAdminBtn" type="button">复制</button>
+            </div>
+            <div class="small" style="margin-bottom: 6px;">学生填写链接</div>
             <div class="linkbox">
               <input id="shareLink" readonly aria-label="学生填写链接">
               <button id="copyLinkBtn" type="button">复制</button>
@@ -301,6 +307,8 @@
       mobileSlots: document.querySelector("#mobileSlots"),
       timeGrid: document.querySelector("#timeGrid"),
       adminPanel: document.querySelector("#adminPanel"),
+      adminLink: document.querySelector("#adminLink"),
+      copyAdminBtn: document.querySelector("#copyAdminBtn"),
       shareLink: document.querySelector("#shareLink"),
       copyLinkBtn: document.querySelector("#copyLinkBtn"),
       durationFilter: document.querySelector("#durationFilter"),
@@ -468,6 +476,7 @@
 
     function renderAdmin() {
       const shareUrl = `${location.origin}/s/${session.id}`;
+      els.adminLink.value = location.href;
       els.shareLink.value = shareUrl;
       renderCandidates();
     }
@@ -570,6 +579,7 @@
     });
 
     els.reloadBtn.addEventListener("click", loadSession);
+    els.copyAdminBtn.addEventListener("click", () => copyText(els.adminLink.value, els.copyAdminBtn));
     els.copyLinkBtn.addEventListener("click", () => copyText(els.shareLink.value, els.copyLinkBtn));
     els.copyShareBtn.addEventListener("click", () => copyText(`${location.origin}/s/${session.id}`, els.copyShareBtn));
     els.durationFilter.addEventListener("change", renderCandidates);
