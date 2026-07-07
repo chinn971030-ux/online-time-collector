@@ -114,6 +114,53 @@
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .notice { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; color: var(--muted); line-height: 1.5; }
     .linkbox { display: grid; grid-template-columns: 1fr 82px; gap: 8px; margin-bottom: 12px; }
+    .mobile-picker { display: none; }
+    .day-tabs {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .day-tab {
+      min-height: 54px;
+      padding: 6px 2px;
+      line-height: 1.25;
+    }
+    .day-tab.active {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+    .day-tab span {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .day-tab.active span { color: rgba(255, 255, 255, .86); }
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .mobile-slots {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .slot-button {
+      min-height: 48px;
+      text-align: left;
+      padding: 6px 10px;
+      border-color: #cfd8d2;
+      touch-action: manipulation;
+    }
+    .slot-button.free {
+      background: var(--green-2);
+      border-color: var(--green);
+      color: #0f5138;
+      font-weight: 700;
+    }
     .hidden { display: none !important; }
     @media (max-width: 920px) {
       header, .layout { display: grid; }
@@ -121,6 +168,16 @@
       .create-form, .two { grid-template-columns: 1fr; }
       .summary { grid-template-columns: 1fr; }
       .grid-wrap { max-height: 58vh; }
+    }
+    @media (max-width: 640px) {
+      .app { width: min(100vw - 16px, 720px); padding-top: 12px; }
+      h1 { font-size: 24px; }
+      .toolbar { display: none; }
+      .panel-body { padding: 10px; }
+      .student-page .grid-wrap { display: none; }
+      .student-page .mobile-picker { display: block; }
+      .student-page .notice { font-size: 12px; }
+      .student-page input, .student-page button { min-height: 44px; }
     }
   </style>
 </head>
@@ -165,6 +222,15 @@
                 <button id="submitBtn" class="primary" type="button">提交时间</button>
               </div>
               <div class="notice" id="studentNotice">绿色表示空闲，再点一次取消。提交后可以用同一个姓名重新覆盖。</div>
+            </div>
+            <div id="mobilePicker" class="mobile-picker">
+              <div id="dayTabs" class="day-tabs"></div>
+              <div class="quick-actions">
+                <button type="button" data-quick="afternoon">下午</button>
+                <button type="button" data-quick="evening">晚上</button>
+                <button type="button" data-quick="clear">清空当天</button>
+              </div>
+              <div id="mobileSlots" class="mobile-slots"></div>
             </div>
             <div class="grid-wrap"><div id="timeGrid" class="time-grid"></div></div>
           </div>
@@ -214,6 +280,7 @@
     const free = {};
     let session = null;
     let isMouseDown = false;
+    let activeMobileDay = 0;
 
     const els = {
       createView: document.querySelector("#createView"),
@@ -229,6 +296,9 @@
       studentControls: document.querySelector("#studentControls"),
       nameInput: document.querySelector("#nameInput"),
       submitBtn: document.querySelector("#submitBtn"),
+      mobilePicker: document.querySelector("#mobilePicker"),
+      dayTabs: document.querySelector("#dayTabs"),
+      mobileSlots: document.querySelector("#mobileSlots"),
       timeGrid: document.querySelector("#timeGrid"),
       adminPanel: document.querySelector("#adminPanel"),
       shareLink: document.querySelector("#shareLink"),
@@ -274,6 +344,7 @@
     }
 
     function renderGrid() {
+      renderMobilePicker();
       const dates = weekDates();
       els.timeGrid.innerHTML = `<div class="corner"></div>`;
       dates.forEach((date, index) => {
@@ -308,6 +379,53 @@
       });
     }
 
+    function renderMobilePicker() {
+      if (isAdminRoute) {
+        els.mobilePicker.classList.add("hidden");
+        return;
+      }
+      els.mobilePicker.classList.remove("hidden");
+      const dates = weekDates();
+      els.dayTabs.innerHTML = "";
+      dates.forEach((date, dayIndex) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `day-tab ${dayIndex === activeMobileDay ? "active" : ""}`;
+        button.innerHTML = `${days[dayIndex].slice(1)}<span>${date.getMonth() + 1}/${date.getDate()}</span>`;
+        button.addEventListener("click", () => {
+          activeMobileDay = dayIndex;
+          renderMobilePicker();
+        });
+        els.dayTabs.appendChild(button);
+      });
+
+      els.mobileSlots.innerHTML = "";
+      slots.forEach((time, slotIndex) => {
+        const key = slotKey(activeMobileDay, slotIndex);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `slot-button ${free[key] ? "free" : ""}`;
+        button.dataset.day = String(activeMobileDay);
+        button.dataset.slot = String(slotIndex);
+        button.textContent = `${time}-${addMinutes(time, 30)}`;
+        button.addEventListener("click", () => toggleMobileSlot(activeMobileDay, slotIndex));
+        els.mobileSlots.appendChild(button);
+      });
+    }
+
+    function syncDesktopCell(dayIndex, slotIndex) {
+      const cell = els.timeGrid.querySelector(`.cell[data-day="${dayIndex}"][data-slot="${slotIndex}"]`);
+      if (cell) cell.classList.toggle("free", Boolean(free[slotKey(dayIndex, slotIndex)]));
+    }
+
+    function toggleMobileSlot(dayIndex, slotIndex) {
+      const key = slotKey(dayIndex, slotIndex);
+      if (free[key]) delete free[key];
+      else free[key] = true;
+      renderMobilePicker();
+      syncDesktopCell(dayIndex, slotIndex);
+    }
+
     function toggleCell(cell, forceFree = false) {
       if (isAdminRoute) return;
       const key = slotKey(Number(cell.dataset.day), Number(cell.dataset.slot));
@@ -315,6 +433,7 @@
       else if (free[key]) delete free[key];
       else free[key] = true;
       cell.classList.toggle("free", Boolean(free[key]));
+      if (Number(cell.dataset.day) === activeMobileDay) renderMobilePicker();
     }
 
     async function loadSession() {
@@ -335,6 +454,7 @@
       els.adminPanel.classList.toggle("hidden", !isAdminRoute);
       els.copyShareBtn.classList.toggle("hidden", !isAdminRoute);
       els.gridTitle.textContent = isAdminRoute ? "学生填写链接预览" : "填写空闲时间";
+      document.body.classList.toggle("student-page", !isAdminRoute);
       renderGrid();
       if (isAdminRoute) renderAdmin();
     }
@@ -454,6 +574,19 @@
     els.copyShareBtn.addEventListener("click", () => copyText(`${location.origin}/s/${session.id}`, els.copyShareBtn));
     els.durationFilter.addEventListener("change", renderCandidates);
     els.strictness.addEventListener("change", renderCandidates);
+    document.querySelectorAll("[data-quick]").forEach(button => {
+      button.addEventListener("click", () => {
+        const action = button.dataset.quick;
+        slots.forEach((time, slotIndex) => {
+          const key = slotKey(activeMobileDay, slotIndex);
+          if (action === "clear") delete free[key];
+          if (action === "afternoon" && time >= "13:00" && time < "18:00") free[key] = true;
+          if (action === "evening" && time >= "18:00" && time < "22:00") free[key] = true;
+          syncDesktopCell(activeMobileDay, slotIndex);
+        });
+        renderMobilePicker();
+      });
+    });
     window.addEventListener("mouseup", () => { isMouseDown = false; });
 
     els.weekStartInput.value = mondayOf(new Date());
