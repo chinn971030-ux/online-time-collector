@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>在线上课时间收集</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17201b;
+      --muted: #66736c;
+      --line: #d7ded9;
+      --soft: #f4f6f2;
+      --paper: #fbfcf8;
+      --green: #1d7d5a;
+      --green-2: #d9f2e6;
+      --amber: #9a6115;
+      --amber-2: #fde7bd;
+      --red: #9d3d35;
+      --shadow: 0 16px 40px rgba(35, 45, 39, .12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(135deg, rgba(29, 125, 90, .10), rgba(232, 184, 79, .12)), var(--paper);
+    }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+    button:hover { border-color: #9db2a6; }
+    input, select {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 10px;
+    }
+    .app { width: min(1440px, calc(100vw - 28px)); margin: 0 auto; padding: 20px 0 28px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    h1 { margin: 0 0 4px; font-size: clamp(24px, 3vw, 38px); line-height: 1.1; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 16px; letter-spacing: 0; }
+    .sub, .small { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .sub { margin: 0; font-size: 14px; }
+    .panel {
+      background: rgba(255, 255, 255, .9);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head { padding: 14px; border-bottom: 1px solid var(--line); background: rgba(244, 246, 242, .72); }
+    .panel-body { padding: 14px; }
+    .create {
+      max-width: 760px;
+      margin: 8vh auto 0;
+      display: grid;
+      gap: 14px;
+    }
+    .create-form { display: grid; grid-template-columns: 1fr 170px 92px; gap: 8px; }
+    .layout { display: grid; grid-template-columns: minmax(560px, 1fr) 360px; gap: 14px; align-items: start; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .toolbar input { max-width: 220px; }
+    .grid-wrap { overflow: auto; max-height: calc(100vh - 210px); background: #fff; }
+    .time-grid {
+      display: grid;
+      grid-template-columns: 64px repeat(7, minmax(86px, 1fr));
+      min-width: 760px;
+      user-select: none;
+    }
+    .cell, .day, .time { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .corner, .day { position: sticky; top: 0; z-index: 3; background: #f7f8f4; }
+    .corner { left: 0; z-index: 4; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .day { min-height: 54px; padding: 8px 6px; text-align: center; }
+    .day strong { display: block; font-size: 13px; margin-bottom: 2px; }
+    .day span, .candidate-meta { color: var(--muted); font-size: 12px; }
+    .time {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      min-height: 28px;
+      padding: 5px 7px;
+      text-align: right;
+      color: var(--muted);
+      font-size: 12px;
+      background: #f7f8f4;
+    }
+    .cell { min-height: 28px; background: #fff; cursor: pointer; }
+    .cell.hour { border-top: 1px solid #c6d0ca; }
+    .cell.free { background: var(--green-2); }
+    .cell:hover { outline: 2px solid rgba(29, 125, 90, .35); outline-offset: -2px; }
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .metric { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; }
+    .metric strong { display: block; font-size: 20px; line-height: 1; margin-bottom: 5px; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .candidate-list { display: grid; gap: 8px; max-height: calc(100vh - 390px); overflow: auto; }
+    .candidate { border: 1px solid var(--line); border-left: 4px solid var(--green); border-radius: 8px; padding: 10px; background: #fff; }
+    .candidate.near { border-left-color: var(--amber); background: #fffaf0; }
+    .candidate-title { font-weight: 700; margin-bottom: 5px; }
+    .field-stack { display: grid; gap: 8px; margin-bottom: 12px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .notice { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; color: var(--muted); line-height: 1.5; }
+    .linkbox { display: grid; grid-template-columns: 1fr 82px; gap: 8px; margin-bottom: 12px; }
+    .hidden { display: none !important; }
+    @media (max-width: 920px) {
+      header, .layout { display: grid; }
+      .layout { grid-template-columns: 1fr; }
+      .create-form, .two { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: 1fr; }
+      .grid-wrap { max-height: 58vh; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="createView" class="create hidden">
+      <div>
+        <h1>在线上课时间收集</h1>
+        <p class="sub">创建一个共享链接，学生在企业微信里打开填写，老师页面自动汇总候补时间。</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>创建收集</h2></div>
+        <div class="panel-body">
+          <form id="createForm" class="create-form">
+            <input id="titleInput" value="本周上课时间收集" aria-label="标题">
+            <input id="weekStartInput" type="date" aria-label="本周开始日期">
+            <button class="primary" type="submit">创建</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="appView" class="hidden">
+      <header>
+        <div>
+          <h1 id="pageTitle">在线上课时间收集</h1>
+          <p class="sub" id="pageSub">选择自己空闲的半小时后提交。</p>
+        </div>
+        <div class="toolbar">
+          <button id="reloadBtn" type="button">刷新</button>
+          <button id="copyShareBtn" class="primary hidden" type="button">复制学生链接</button>
+        </div>
+      </header>
+
+      <section class="layout">
+        <section class="panel">
+          <div class="panel-head"><h2 id="gridTitle">填写空闲时间</h2></div>
+          <div class="panel-body">
+            <div id="studentControls" class="field-stack">
+              <div class="two">
+                <input id="nameInput" placeholder="你的姓名" autocomplete="name">
+                <button id="submitBtn" class="primary" type="button">提交时间</button>
+              </div>
+              <div class="notice" id="studentNotice">绿色表示空闲，再点一次取消。提交后可以用同一个姓名重新覆盖。</div>
+            </div>
+            <div class="grid-wrap"><div id="timeGrid" class="time-grid"></div></div>
+          </div>
+        </section>
+
+        <aside id="adminPanel" class="panel hidden">
+          <div class="panel-head"><h2>老师汇总</h2></div>
+          <div class="panel-body">
+            <div class="linkbox">
+              <input id="shareLink" readonly aria-label="学生填写链接">
+              <button id="copyLinkBtn" type="button">复制</button>
+            </div>
+            <div class="two" style="margin-bottom: 12px;">
+              <select id="durationFilter" aria-label="课程时长">
+                <option value="60">1小时课</option>
+                <option value="150">2.5小时课</option>
+                <option value="all">全部</option>
+              </select>
+              <select id="strictness" aria-label="候补范围">
+                <option value="all">全员可参加</option>
+                <option value="near">含差1人备选</option>
+                <option value="any">按人数排序</option>
+              </select>
+            </div>
+            <div id="summary" class="summary"></div>
+            <div id="candidateList" class="candidate-list"></div>
+          </div>
+        </aside>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+    const slots = [];
+    for (let hour = 8; hour < 22; hour += 1) {
+      slots.push(`${String(hour).padStart(2, "0")}:00`);
+      slots.push(`${String(hour).padStart(2, "0")}:30`);
+    }
+
+    const pathParts = location.pathname.split("/").filter(Boolean);
+    const route = pathParts[0] || "";
+    const sessionId = pathParts[1] || "";
+    const adminToken = new URLSearchParams(location.search).get("token") || "";
+    const isAdminRoute = route === "admin";
+    const isStudentRoute = route === "s";
+    const free = {};
+    let session = null;
+    let isMouseDown = false;
+
+    const els = {
+      createView: document.querySelector("#createView"),
+      appView: document.querySelector("#appView"),
+      createForm: document.querySelector("#createForm"),
+      titleInput: document.querySelector("#titleInput"),
+      weekStartInput: document.querySelector("#weekStartInput"),
+      pageTitle: document.querySelector("#pageTitle"),
+      pageSub: document.querySelector("#pageSub"),
+      gridTitle: document.querySelector("#gridTitle"),
+      reloadBtn: document.querySelector("#reloadBtn"),
+      copyShareBtn: document.querySelector("#copyShareBtn"),
+      studentControls: document.querySelector("#studentControls"),
+      nameInput: document.querySelector("#nameInput"),
+      submitBtn: document.querySelector("#submitBtn"),
+      timeGrid: document.querySelector("#timeGrid"),
+      adminPanel: document.querySelector("#adminPanel"),
+      shareLink: document.querySelector("#shareLink"),
+      copyLinkBtn: document.querySelector("#copyLinkBtn"),
+      durationFilter: document.querySelector("#durationFilter"),
+      strictness: document.querySelector("#strictness"),
+      summary: document.querySelector("#summary"),
+      candidateList: document.querySelector("#candidateList"),
+    };
+
+    function mondayOf(date) {
+      const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const day = copy.getDay() || 7;
+      copy.setDate(copy.getDate() - day + 1);
+      return formatDate(copy);
+    }
+
+    function formatDate(date) {
+      return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+    }
+
+    function weekDates() {
+      return days.map((_, index) => {
+        const date = new Date(`${session.weekStart}T00:00:00`);
+        date.setDate(date.getDate() + index);
+        return date;
+      });
+    }
+
+    function slotKey(dayIndex, slotIndex) {
+      return `${dayIndex}-${slotIndex}`;
+    }
+
+    function addMinutes(time, minutes) {
+      const [h, m] = time.split(":").map(Number);
+      const total = h * 60 + m + minutes;
+      return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    }
+
+    function slotLabel(dayIndex, slotIndex, duration) {
+      const date = weekDates()[dayIndex];
+      return `${days[dayIndex]} ${date.getMonth() + 1}/${date.getDate()} ${slots[slotIndex]}-${addMinutes(slots[slotIndex], duration)}`;
+    }
+
+    function renderGrid() {
+      const dates = weekDates();
+      els.timeGrid.innerHTML = `<div class="corner"></div>`;
+      dates.forEach((date, index) => {
+        const day = document.createElement("div");
+        day.className = "day";
+        day.innerHTML = `<strong>${days[index]}</strong><span>${date.getMonth() + 1}/${date.getDate()}</span>`;
+        els.timeGrid.appendChild(day);
+      });
+      slots.forEach((time, slotIndex) => {
+        const timeCell = document.createElement("div");
+        timeCell.className = "time";
+        timeCell.textContent = time.endsWith(":00") ? time : "";
+        els.timeGrid.appendChild(timeCell);
+        days.forEach((_, dayIndex) => {
+          const key = slotKey(dayIndex, slotIndex);
+          const cell = document.createElement("div");
+          cell.className = `cell ${slotIndex % 2 === 0 ? "hour" : ""} ${free[key] ? "free" : ""}`;
+          cell.dataset.day = String(dayIndex);
+          cell.dataset.slot = String(slotIndex);
+          cell.title = slotLabel(dayIndex, slotIndex, 30);
+          cell.addEventListener("mousedown", event => {
+            event.preventDefault();
+            isMouseDown = true;
+            toggleCell(cell);
+          });
+          cell.addEventListener("mouseenter", () => {
+            if (isMouseDown) toggleCell(cell, true);
+          });
+          cell.addEventListener("click", () => toggleCell(cell));
+          els.timeGrid.appendChild(cell);
+        });
+      });
+    }
+
+    function toggleCell(cell, forceFree = false) {
+      if (isAdminRoute) return;
+      const key = slotKey(Number(cell.dataset.day), Number(cell.dataset.slot));
+      if (forceFree) free[key] = true;
+      else if (free[key]) delete free[key];
+      else free[key] = true;
+      cell.classList.toggle("free", Boolean(free[key]));
+    }
+
+    async function loadSession() {
+      const url = `/api/sessions/${sessionId}${adminToken ? `?token=${encodeURIComponent(adminToken)}` : ""}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "读取失败");
+      session = data;
+      renderApp();
+    }
+
+    function renderApp() {
+      els.createView.classList.add("hidden");
+      els.appView.classList.remove("hidden");
+      els.pageTitle.textContent = session.title;
+      els.pageSub.textContent = `${formatWeekRange()} · 已提交 ${session.participantCount} 人`;
+      els.studentControls.classList.toggle("hidden", isAdminRoute);
+      els.adminPanel.classList.toggle("hidden", !isAdminRoute);
+      els.copyShareBtn.classList.toggle("hidden", !isAdminRoute);
+      els.gridTitle.textContent = isAdminRoute ? "学生填写链接预览" : "填写空闲时间";
+      renderGrid();
+      if (isAdminRoute) renderAdmin();
+    }
+
+    function formatWeekRange() {
+      const dates = weekDates();
+      const first = dates[0];
+      const last = dates[6];
+      return `${first.getFullYear()}/${first.getMonth() + 1}/${first.getDate()} - ${last.getMonth() + 1}/${last.getDate()}`;
+    }
+
+    function renderAdmin() {
+      const shareUrl = `${location.origin}/s/${session.id}`;
+      els.shareLink.value = shareUrl;
+      renderCandidates();
+    }
+
+    function renderCandidates() {
+      const students = session.participants || [];
+      const studentsTotal = students.length;
+      const candidates60 = findCandidates(students, 60);
+      const candidates150 = findCandidates(students, 150);
+      const allCandidates = [...candidates60, ...candidates150].sort(compareCandidates);
+      const full60 = candidates60.filter(item => item.missing.length === 0).length;
+      const full150 = candidates150.filter(item => item.missing.length === 0).length;
+      els.summary.innerHTML = `
+        <div class="metric"><strong>${studentsTotal}</strong><span>已提交</span></div>
+        <div class="metric"><strong>${full60}</strong><span>1小时全员候补</span></div>
+        <div class="metric"><strong>${full150}</strong><span>2.5小时全员候补</span></div>
+      `;
+
+      let visible = els.durationFilter.value === "60" ? candidates60 : els.durationFilter.value === "150" ? candidates150 : allCandidates;
+      if (els.strictness.value === "all") visible = visible.filter(item => item.missing.length === 0);
+      if (els.strictness.value === "near") visible = visible.filter(item => item.missing.length <= 1);
+      visible = visible.sort(compareCandidates).slice(0, 60);
+
+      if (!studentsTotal) {
+        els.candidateList.innerHTML = `<div class="notice">学生提交后，这里会自动出现候补。</div>`;
+        return;
+      }
+      if (!visible.length) {
+        els.candidateList.innerHTML = `<div class="notice">当前筛选下还没有候补，可以切换到“含差1人备选”。</div>`;
+        return;
+      }
+      els.candidateList.innerHTML = "";
+      visible.forEach(item => {
+        const card = document.createElement("div");
+        card.className = `candidate ${item.missing.length ? "near" : ""}`;
+        const missingText = item.missing.length ? `缺：${item.missing.join("、")}` : "全员可参加";
+        card.innerHTML = `
+          <div class="candidate-title">${slotLabel(item.dayIndex, item.slotIndex, item.duration)}</div>
+          <div class="candidate-meta">${item.duration === 60 ? "1小时课" : "2.5小时课"} · ${item.available.length}/${studentsTotal} 人可参加 · ${missingText}</div>
+        `;
+        els.candidateList.appendChild(card);
+      });
+    }
+
+    function findCandidates(students, duration) {
+      const needed = duration / 30;
+      const candidates = [];
+      for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+        for (let slotIndex = 0; slotIndex <= slots.length - needed; slotIndex += 1) {
+          const endText = addMinutes(slots[slotIndex], duration);
+          if (endText > "22:00") continue;
+          const available = [];
+          const missing = [];
+          students.forEach(student => {
+            const ok = Array.from({ length: needed }, (_, offset) => student.free?.[slotKey(dayIndex, slotIndex + offset)]).every(Boolean);
+            if (ok) available.push(student.name);
+            else missing.push(student.name);
+          });
+          candidates.push({ dayIndex, slotIndex, duration, available, missing });
+        }
+      }
+      return candidates;
+    }
+
+    function compareCandidates(a, b) {
+      return b.available.length - a.available.length || a.duration - b.duration || a.dayIndex - b.dayIndex || a.slotIndex - b.slotIndex;
+    }
+
+    async function copyText(text, button) {
+      await navigator.clipboard.writeText(text);
+      const old = button.textContent;
+      button.textContent = "已复制";
+      setTimeout(() => { button.textContent = old; }, 1200);
+    }
+
+    els.createForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: els.titleInput.value, weekStart: els.weekStartInput.value }),
+      });
+      const data = await response.json();
+      if (!response.ok) return alert(data.error || "创建失败");
+      location.href = data.adminUrl;
+    });
+
+    els.submitBtn.addEventListener("click", async () => {
+      const name = els.nameInput.value.trim();
+      if (!name) return alert("请先填写姓名");
+      const response = await fetch(`/api/sessions/${sessionId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, free }),
+      });
+      const data = await response.json();
+      if (!response.ok) return alert(data.error || "提交失败");
+      alert("已提交，可以关闭页面。需要修改时，用同一个姓名重新提交即可。");
+      await loadSession();
+    });
+
+    els.reloadBtn.addEventListener("click", loadSession);
+    els.copyLinkBtn.addEventListener("click", () => copyText(els.shareLink.value, els.copyLinkBtn));
+    els.copyShareBtn.addEventListener("click", () => copyText(`${location.origin}/s/${session.id}`, els.copyShareBtn));
+    els.durationFilter.addEventListener("change", renderCandidates);
+    els.strictness.addEventListener("change", renderCandidates);
+    window.addEventListener("mouseup", () => { isMouseDown = false; });
+
+    els.weekStartInput.value = mondayOf(new Date());
+    if (isAdminRoute || isStudentRoute) {
+      loadSession().catch(error => {
+        document.body.innerHTML = `<main class="app"><div class="notice">${error.message}</div></main>`;
+      });
+    } else {
+      els.createView.classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>
